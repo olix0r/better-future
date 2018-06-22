@@ -88,7 +88,6 @@
 #![deny(warnings, missing_docs, missing_debug_implementations)]
 
 extern crate fnv;
-#[macro_use]
 extern crate futures;
 
 use fnv::FnvHashMap;

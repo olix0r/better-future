@@ -1,4 +1,4 @@
-use futures::{Poll, Stream};
+use futures::{Async, Poll, Stream};
 
 use {Watch, WatchError};
 
@@ -11,7 +11,7 @@ pub trait Then<T> {
     type Error;
 
     /// Produces a new Output value.
-    fn then(&mut self, t: &T) -> Result<Self::Output, Self::Error>;
+    fn then(&mut self, t: Result<&T,  WatchError>) -> Result<Self::Output, Self::Error>;
 }
 
 /// Each time the underlying `Watch<T>` is updated, the stream maps over the most-recent
@@ -20,15 +20,6 @@ pub trait Then<T> {
 pub struct ThenStream<T, M: Then<T>> {
     watch: Watch<T>,
     then: M,
-}
-
-/// Errors produced by `MapStream::poll`.
-#[derive(Debug)]
-pub enum Error<E> {
-    /// An error mapping to a new value may be transient.
-    Then(E),
-    /// An error polling the underlying `Watch`. Probably fatal.
-    WatchError(WatchError),
 }
 
 // ==== impl ThenStream ====
@@ -41,15 +32,25 @@ impl<T, M: Then<T>> ThenStream<T, M> {
 
 impl<T, M: Then<T>> Stream for ThenStream<T, M> {
     type Item = <M as Then<T>>::Output;
-    type Error = Error<<M as Then<T>>::Error>;
+    type Error = <M as Then<T>>::Error;
 
     fn poll(&mut self) -> Poll<Option<M::Output>, Self::Error> {
-        try_ready!(self.watch.poll().map_err(Error::WatchError));
+        let result = match self.watch.poll() {
+            Ok(Async::Ready(Some(()))) => {
+                self.then.then(Ok(&*self.watch.borrow()))
+            }
+            Err(e) => {
+                self.then.then(Err(e))
+            }
+            Ok(Async::NotReady) => {
+                return Ok(Async::NotReady);
+            }
+            Ok(Async::Ready(None)) => {
+                return Ok(Async::Ready(None));
+            }
+        };
 
-        let item = self.then.then(&*self.watch.borrow())
-            .map_err(Error::Then)?;
-
-        Ok(Some(item).into())
+        result.map(Some).map(Async::Ready)
     }
 }
 
@@ -63,12 +64,12 @@ impl<T, M: Clone + Then<T>> Clone for ThenStream<T, M> {
 
 impl<T, O, E, F> Then<T> for F
 where
-    for<'t> F: FnMut(&T) -> Result<O, E>,
+    for<'t> F: FnMut(Result<&T, WatchError>) -> Result<O, E>,
 {
     type Output = O;
     type Error = E;
 
-    fn then(&mut self, t: &T) -> Result<O, E> {
+    fn then(&mut self, t: Result<&T, WatchError>) -> Result<O, E> {
         (self)(t)
     }
 }
