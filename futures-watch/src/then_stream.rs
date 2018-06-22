@@ -11,7 +11,7 @@ pub trait Then<T> {
     type Error;
 
     /// Produces a new Output value.
-    fn then(&mut self, t: Result<&T,  WatchError>) -> Result<Self::Output, Self::Error>;
+    fn then(&mut self, t: Result<&T, WatchError>) -> Result<Self::Output, Self::Error>;
 }
 
 /// Each time the underlying `Watch<T>` is updated, the stream maps over the most-recent
