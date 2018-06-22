@@ -88,6 +88,7 @@
 #![deny(warnings, missing_docs, missing_debug_implementations)]
 
 extern crate fnv;
+#[macro_use]
 extern crate futures;
 
 use fnv::FnvHashMap;
@@ -98,6 +99,11 @@ use std::{mem, ops};
 use std::sync::{Arc, Weak, Mutex, RwLock, RwLockReadGuard};
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering::SeqCst;
+
+/// Uses a `Watch` to produce a `Stream` of mapped values.
+pub mod map_stream;
+
+pub use map_stream::Map;
 
 /// A future-aware cell that receives notifications when the inner value is
 /// changed.
@@ -274,6 +280,11 @@ impl<T> Watch<T> {
     pub fn borrow(&self) -> Ref<T> {
         let inner = self.shared.value.read().unwrap();
         Ref { inner }
+    }
+
+    /// Convert this watch into a stream of values produced by an `M`-typed map function.
+    pub fn map_stream<M: Map<T>>(self, map: M) -> map_stream::MapStream<T, M> {
+        map_stream::MapStream::new(self, map)
     }
 }
 
