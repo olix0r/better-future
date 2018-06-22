@@ -22,6 +22,17 @@ pub struct ThenStream<T, M: Then<T>> {
     then: M,
 }
 
+/// Errors produced by `MapStream::poll`.
+#[derive(Debug)]
+pub enum Error<E> {
+    /// An error mapping to a new value may be transient.
+    Then(E),
+    /// An error polling the underlying `Watch`. Probably fatal.
+    WatchError(WatchError),
+}
+
+// ==== impl ThenStream ====
+
 impl<T, M: Then<T>> ThenStream<T, M> {
     pub(crate) fn new(watch: Watch<T>, then: M) -> Self {
         Self { watch, then }
@@ -44,18 +55,20 @@ impl<T, M: Then<T>> Stream for ThenStream<T, M> {
 
 impl<T, M: Clone + Then<T>> Clone for ThenStream<T, M> {
     fn clone(&self) -> Self {
-        Self {
-            watch: self.watch.clone(),
-            then: self.then.clone(),
-        }
+        Self::new(self.watch.clone(), self.then.clone())
     }
 }
 
-/// Errors produced by `MapStream::poll`.
-#[derive(Debug)]
-pub enum Error<E> {
-    /// An error mapping to a new value may be transient.
-    Then(E),
-    /// An error polling the underlying `Watch`. Probably fatal.
-    WatchError(WatchError),
+// ==== impl Then ====
+
+impl<T, O, E, F> Then<T> for F
+where
+    for<'t> F: FnMut(&T) -> Result<O, E>,
+{
+    type Output = O;
+    type Error = E;
+
+    fn then(&mut self, t: &T) -> Result<O, E> {
+        (self)(t)
+    }
 }
