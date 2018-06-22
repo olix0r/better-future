@@ -101,9 +101,9 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering::SeqCst;
 
 /// Uses a `Watch` to produce a `Stream` of mapped values.
-pub mod map_stream;
+pub mod then_stream;
 
-pub use map_stream::Map;
+pub use then_stream::Then;
 
 /// A future-aware cell that receives notifications when the inner value is
 /// changed.
@@ -283,8 +283,8 @@ impl<T> Watch<T> {
     }
 
     /// Convert this watch into a stream of values produced by an `M`-typed map function.
-    pub fn map_stream<M: Map<T>>(self, map: M) -> map_stream::MapStream<T, M> {
-        map_stream::MapStream::new(self, map)
+    pub fn then_stream<M: Then<T>>(self, then: M) -> then_stream::ThenStream<T, M> {
+        then_stream::ThenStream::new(self, then)
     }
 }
 
